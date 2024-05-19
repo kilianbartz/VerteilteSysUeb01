@@ -2,8 +2,28 @@ import socket
 import time
 import random
 import sys
+import threading
 
 lamport_counter = 0
+lamport_lock = threading.Lock()
+stop_event = threading.Event()
+
+def wait_and_roll(name, s, spieler_latenz):
+    global lamport_counter
+    try:
+        wait_time = random.uniform(0, spieler_latenz)
+        print(f"Waiting for {wait_time} seconds...")
+        if stop_event.wait(timeout=wait_time):
+            print("STOP signal received. Skipping roll.")
+            return  # STOP signal received, exit the thread
+        
+        wurf = random.randint(1, 100)
+        with lamport_lock:
+            lamport_counter += 1
+            s.sendall(f"{lamport_counter}:{name}:{wurf}".encode())
+            print(f"Sent with counter: {lamport_counter}")
+    except Exception as e:
+        print(f"Error in wait_and_roll: {e}")
 
 def play_game(name, host, port, spieler_latenz):
     global lamport_counter
@@ -17,14 +37,14 @@ def play_game(name, host, port, spieler_latenz):
             print(f"Received: {msg}")
             lc_sender, msg = msg.split(":")
             lc_sender = int(lc_sender)
+            with lamport_lock:
+                lamport_counter = max(lamport_counter, lc_sender) + 1
+                print(f"Updated counter to: {lamport_counter}")
             if msg == "START":
-                lamport_counter = max(lamport_counter, lc_sender) + 1
-                time.sleep(random.uniform(0, spieler_latenz))
-                wurf = random.randint(1, 100)
-                lamport_counter += 1
-                s.sendall(f"{lamport_counter}:{name}:{wurf}".encode())
-            else:
-                lamport_counter = max(lamport_counter, lc_sender) + 1
+                stop_event.clear()
+                threading.Thread(target=wait_and_roll, args=(name, s, spieler_latenz)).start()
+            elif msg == "STOP":
+                stop_event.set()
                 continue
 
 if __name__ == "__main__":

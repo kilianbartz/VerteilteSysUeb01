@@ -6,7 +6,6 @@ import sys
 class GameMaster:
 
     lamport_counter: int = 0
-    last_stop_event: int = 0
 
     def __init__(self, host, port, dauer_der_runde):
         self.host = host
@@ -29,42 +28,43 @@ class GameMaster:
                     lc, name, wurf = msg.split(":")
                     lc = int(lc)
                     with self.lock:
-                        if lc < self.last_stop_event:
-                            self.lamport_counter = max(self.lamport_counter, lc) + 1
-                            wurf = int(wurf)
-                            self.results.append((name, wurf))
-                        else:
-                            print(f"Discarding message from {name} due to outdated Lamport Counter.")
+                        self.lamport_counter = max(self.lamport_counter, lc) + 1
+                        wurf = int(wurf)
+                        self.results.append((lc, name, wurf))
             except:
                 break
 
     def start_game(self):
         while True:
-            print("Starting a new round...")
             with self.lock:
                 self.results = []
             
-            
             with self.lock:
                 self.lamport_counter += 1
+                print(f"Starting round with counter: {self.lamport_counter}")
                 for name, conn in self.players:
-                    conn.sendall(f"{self.lamport_counter}START".encode())
+                    conn.sendall(f"{self.lamport_counter}:START".encode())
             
             time.sleep(self.dauer_der_runde)
 
-            
+            stop_event: int
             with self.lock:
                 self.lamport_counter += 1
-                self.last_stop_event = self.lamport_counter
+                stop_event = self.lamport_counter
+                print(f"Stopping round with counter: {self.lamport_counter}")
                 for name, conn in self.players:
                     conn.sendall(f"{self.lamport_counter}:STOP".encode())
             
             with self.lock:
                 if self.results:
-                    winner = max(self.results, key=lambda x: x[1])
-                    print(f"Round Winner: {winner[0]} with a roll of {winner[1]}")
+                    for entry in self.results:
+                        if entry[0] >= stop_event:
+                            print(f"Player {entry[1]} missed the stop event.")
+                            self.results.remove(entry)
+                    winner = max(self.results, key=lambda x: x[2])
+                    print(f"Round Winner: {winner[1]} with a roll of {winner[2]}")
                     with open("game_results.txt", "a") as f:
-                        f.write(f"Winner: {winner[0]}, Roll: {winner[1]}\n")
+                        f.write(f"Winner: {winner[1]}, Roll: {winner[2]}\n")
 
     def start_server(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
