@@ -1,0 +1,1 @@
+Ich gehe davon aus, dass der Client beim Erhalten des Stop-Signals seine aktuelle "Berechnung" verwirft um bereit zu sein, an der nächsten Runde teilzunehmen. Ansonsten würde ein Client potenziell sehr lange nicht mehr zur aktuellen Runde aufschließen
