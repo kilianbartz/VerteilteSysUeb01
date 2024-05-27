@@ -7,7 +7,6 @@ import os
 import signal
 
 TOTAL_ROUNDS = 300
-
 rounds = []
 
 
