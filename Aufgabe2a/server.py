@@ -2,9 +2,14 @@ import socket
 import threading
 import time
 import sys
-import csv
+import json
+import os
+import signal
 
-TOTAL_ROUNDS = 60
+TOTAL_ROUNDS = 300
+
+rounds = []
+
 
 class GameMaster:
     def __init__(self, host, port, dauer_der_runde):
@@ -22,7 +27,7 @@ class GameMaster:
             threading.Thread(target=self.start_game).start()
             print("Game started.")
         print(f"Player {name} from {addr} has joined the game.")
-        
+
         while True:
             try:
                 msg = conn.recv(1024).decode()
@@ -36,30 +41,38 @@ class GameMaster:
                 break
 
     def start_game(self):
-        with open("game_results.csv", "w") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Winner", "Roll", "#Entries"])
         for i in range(TOTAL_ROUNDS):
-            print("Starting a new round...")
+            print(f"Starting round {i+1}")
             with self.lock:
                 self.results = []
-            
+
             for name, conn in self.players:
-                conn.sendall(b'START')
-            
+                conn.sendall(b"START")
+
             time.sleep(self.dauer_der_runde)
-            
+
             for name, conn in self.players:
-                conn.sendall(b'STOP')
-            
+                conn.sendall(b"STOP")
+
             with self.lock:
-                if self.results:
-                    entries = len(self.results)
+                entries = len(self.results)
+                winner = ("'Nobody participated'", 0)
+                if entries > 0:
                     winner = max(self.results, key=lambda x: x[1])
-                    print(f"Round Winner: {winner[0]} with a roll of {winner[1]}")
-                    with open("game_results.csv", "a") as f:
-                        writer = csv.writer(f)
-                        writer.writerow([winner[0], winner[1], entries])
+                print(f"Round Winner: {winner[0]} with a roll of {winner[1]}")
+                rounds.append(
+                    {
+                        "round": i + 1,
+                        "winner": winner[0],
+                        "roll": winner[1],
+                        "participants": [name for name, _ in self.results],
+                    }
+                )
+            # stop server
+        print(f"Game concluded after {TOTAL_ROUNDS} rounds.")
+        with open("results.json", "w") as f:
+            json.dump(rounds, f, indent=2)
+        os.kill(os.getpid(), signal.SIGINT)
 
     def start_server(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -71,15 +84,16 @@ class GameMaster:
                 conn, addr = s.accept()
                 threading.Thread(target=self.handle_player, args=(conn, addr)).start()
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: python game_master.py <DAUER_DER_RUNDE> <PORT>")
         sys.exit(1)
-    
+
     DAUER_DER_RUNDE = int(sys.argv[1])
     PORT = int(sys.argv[2])
 
-    gm = GameMaster('0.0.0.0', PORT, DAUER_DER_RUNDE)
+    gm = GameMaster("0.0.0.0", PORT, DAUER_DER_RUNDE)
     threading.Thread(target=gm.start_server).start()
     # try:
     #     gm.start_game()

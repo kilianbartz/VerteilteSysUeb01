@@ -1,2 +1,3 @@
-/ntp_offset_pc.png
-/ntp_offset_server.png
+*.png
+*.csv
+*.json
