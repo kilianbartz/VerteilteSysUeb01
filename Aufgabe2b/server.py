@@ -61,13 +61,7 @@ class GameMaster:
                     try:
                         conn.sendall(f"{self.lamport_counter}:START".encode())
                     except:
-                        try:
-                            time.sleep(2)
-                            conn.sendall(f"{self.lamport_counter}:START".encode())
-                        except:
-                            time.sleep(4)
-                            conn.sendall(f"{self.lamport_counter}:START".encode())
-                        # self.players.remove((name, conn))
+                        self.players.remove((name, conn))
 
             time.sleep(self.dauer_der_runde)
 
@@ -83,9 +77,7 @@ class GameMaster:
                             time.sleep(2)
                             conn.sendall(f"{self.lamport_counter}:STOP".encode())
                         except:
-                            time.sleep(4)
-                            conn.sendall(f"{self.lamport_counter}:STOP".encode())
-                        # self.players.remove((name, conn))
+                            self.players.remove((name, conn))
 
             with self.lock:
                 winner = (-1, "'Nobody participated'", 0)
