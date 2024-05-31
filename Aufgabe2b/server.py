@@ -81,20 +81,21 @@ class GameMaster:
 
             with self.lock:
                 winner = (-1, "'Nobody participated'", 0)
-                for entry in self.results:
-                    if entry[0] <= self.last_start or entry[0] >= self.last_stop:
-                        print(f"Player {entry[1]} missed the stop event.")
-                        self.results.remove(entry)
-                entries = len(self.results)
+                punctual = [
+                    entry
+                    for entry in self.results
+                    if entry[0] > self.last_start and entry[0] < self.last_stop
+                ]
+                entries = len(punctual)
                 if entries > 0:
-                    winner = max(self.results, key=lambda x: x[2])
+                    winner = max(punctual, key=lambda x: x[2])
                 print(f"Round Winner: {winner[1]} with a roll of {winner[2]}")
                 rounds.append(
                     {
                         "round": i + 1,
                         "winner": winner[1],
                         "roll": winner[2],
-                        "participants": [name for _, name, _ in self.results],
+                        "participants": [name for _, name, _ in punctual],
                     }
                 )
         print(f"Game concluded after {TOTAL_ROUNDS} rounds.")
