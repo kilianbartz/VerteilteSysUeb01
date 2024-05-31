@@ -1,16 +1,17 @@
 import socket
+import time
 import random
 import sys
 import threading
-import json
 import uuid
 
 lamport_counter = 0
 lamport_lock = threading.Lock()
 stop_event = threading.Event()
+name = str(uuid.uuid4())
 
 
-def wait_and_roll(my_uuid, s, spieler_latenz):
+def wait_and_roll(s, spieler_latenz):
     global lamport_counter
     try:
         wait_time = random.uniform(0, spieler_latenz)
@@ -22,38 +23,33 @@ def wait_and_roll(my_uuid, s, spieler_latenz):
         wurf = random.randint(1, 100)
         with lamport_lock:
             lamport_counter += 1
-            roll = {"uuid": my_uuid, "value": wurf, "lamport_counter": lamport_counter}
-            s.sendall(json.dumps(roll).encode())
+            s.sendall(f"{lamport_counter}:{name}:{wurf}".encode())
             print(f"Sent with counter: {lamport_counter}")
     except Exception as e:
         print(f"Error in wait_and_roll: {e}")
 
 
-def play_game(name, host, port, spieler_latenz):
+def play_game(host, port, spieler_latenz):
     global lamport_counter
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
-        join = {"name": f"client_{str(uuid.uuid4())}"}
-        s.sendall(json.dumps(join).encode())
+        s.sendall(name.encode())
         print(f"Connected to server as {name}.")
-        msg = s.recv(1024).decode()
-        print(f"Received message: {msg}")
-        my_uuid = json.loads(msg)["uuid"]
 
         while True:
             msg = s.recv(1024).decode()
-            print(f"Received message: {msg}")
-            msg = json.loads(msg)
+            print(f"Received: {msg}")
+            lc_sender, msg = msg.split(":")
+            lc_sender = int(lc_sender)
             with lamport_lock:
-                lamport_counter = max(lamport_counter, msg["lamport_counter"]) + 1
+                lamport_counter = max(lamport_counter, lc_sender) + 1
                 print(f"Updated counter to: {lamport_counter}")
-            if msg["command"] == "StartRound":
+            if msg == "START":
                 stop_event.clear()
-                threading.Thread(
-                    target=wait_and_roll, args=(my_uuid, s, spieler_latenz)
-                ).start()
-            else:
+                threading.Thread(target=wait_and_roll, args=(s, spieler_latenz)).start()
+            elif msg == "STOP":
                 stop_event.set()
+                continue
 
 
 if __name__ == "__main__":
@@ -66,4 +62,4 @@ if __name__ == "__main__":
     PORT = int(sys.argv[3])
     SPIELER_LATENZ = int(sys.argv[4])
 
-    play_game(NAME, HOST, PORT, SPIELER_LATENZ)
+    play_game(HOST, PORT, SPIELER_LATENZ)
